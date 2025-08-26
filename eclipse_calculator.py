@@ -12,7 +12,7 @@ def ploss(v_kmh: float) -> float:
     v_ms = v_kmh / 3.6
     rolling = cr * m * 9.81 * v_ms
     drag = 0.5 * rho * v_ms**2 * af * cd * v_ms
-    return rolling + drag
+    return rolling + drag  # Watts
 
 def time_to_hours(hours_entry, minutes_entry):
     """Convert hours + minutes entries to decimal hours."""
@@ -39,7 +39,6 @@ def calculate_time(event=None):
         net = total_gain - total_loss
         arrival_soc = current_soc + time_h * net
 
-        # Show hours + minutes
         hours = int(time_h)
         minutes = int((time_h - hours) * 60)
 
@@ -101,6 +100,51 @@ def calculate_distance(event=None):
         )
     except ValueError:
         results3.set("Please enter valid numbers.")
+
+def calculate_required_speed(event=None):
+    try:
+        target_soc = float(target_soc_entry.get())
+        current_soc = float(current_soc_entry.get())
+        solar_power = float(solar_entry4.get())
+        distance = float(dist_entry4.get())
+
+        distance_m = distance * 1000
+        energy_to_use = current_soc - target_soc  # Wh
+
+        required_speed = None
+        required_time = None
+        total_loss = None
+        total_gain = None
+
+        for speed in range(5, 150):  # search 5–150 km/h
+            v_ms = speed / 3.6
+            time_h = distance / speed  # h
+
+            loss = ploss(speed) * time_h
+            gain = solar_power * time_h
+            net_used = loss - gain
+
+            if abs(net_used - energy_to_use) < 50:  # within 50 Wh
+                required_speed = speed
+                required_time = time_h
+                total_loss = loss
+                total_gain = gain
+                break
+
+        if required_speed:
+            hours = int(required_time)
+            minutes = int((required_time - hours) * 60)
+            results4.set(
+                f"Total loss: -{total_loss:.0f} Wh\n"
+                f"Total gain: {total_gain:.0f} Wh\n"
+                f"Net gain/loss: {total_loss - total_gain:.0f} Wh\n"
+                f"Required speed: {required_speed:.1f} km/h\n"
+                f"Time to arrival: {hours}h {minutes}m"
+            )
+        else:
+            results4.set("No feasible speed found in range")
+    except ValueError:
+        results4.set("Please enter valid numbers.")
 
 # --- UI ---
 root = tk.Tk()
@@ -172,5 +216,25 @@ solar_entry3 = ttk.Entry(frame3); solar_entry3.grid(column=1, row=3); solar_entr
 ttk.Button(frame3, text="Calculate", command=calculate_distance).grid(column=0, row=4, columnspan=2, pady=8)
 results3 = tk.StringVar()
 ttk.Label(frame3, textvariable=results3, justify="left").grid(column=0, row=5, columnspan=2, sticky=tk.W)
+
+# --- Calculator 4: Required speed from target SOC ---
+frame4 = ttk.Frame(notebook, padding="12")
+notebook.add(frame4, text="Required Speed from Target SOC")
+
+ttk.Label(frame4, text="Distance to travel (km):").grid(column=0, row=0, sticky=tk.W)
+dist_entry4 = ttk.Entry(frame4); dist_entry4.grid(column=1, row=0); dist_entry4.insert(0, "100")
+
+ttk.Label(frame4, text="Current SOC (Wh):").grid(column=0, row=1, sticky=tk.W)
+current_soc_entry = ttk.Entry(frame4); current_soc_entry.grid(column=1, row=1); current_soc_entry.insert(0, "3000")
+
+ttk.Label(frame4, text="Target SOC at arrival (Wh):").grid(column=0, row=2, sticky=tk.W)
+target_soc_entry = ttk.Entry(frame4); target_soc_entry.grid(column=1, row=2); target_soc_entry.insert(0, "2000")
+
+ttk.Label(frame4, text="Mean solar power (W):").grid(column=0, row=3, sticky=tk.W)
+solar_entry4 = ttk.Entry(frame4); solar_entry4.grid(column=1, row=3); solar_entry4.insert(0, "500")
+
+ttk.Button(frame4, text="Calculate", command=calculate_required_speed).grid(column=0, row=4, columnspan=2, pady=8)
+results4 = tk.StringVar()
+ttk.Label(frame4, textvariable=results4, justify="left").grid(column=0, row=5, columnspan=2, sticky=tk.W)
 
 root.mainloop()
